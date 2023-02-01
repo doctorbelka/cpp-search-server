@@ -459,6 +459,22 @@ void PredicateAndStatus() {
         ASSERT_EQUAL(docs.size(), 1);
         ASSERT_EQUAL(docs[0].id, 43);
     }
+{
+        SearchServer server;
+        server.AddDocument(doc_id, content, DocumentStatus::ACTUAL, ratings);
+        server.AddDocument(doc_id2, content, DocumentStatus::IRRELEVANT, ratings);
+        vector<Document> docs = server.FindTopDocuments("cat"s, DocumentStatus::IRRELEVANT);
+        ASSERT_EQUAL(docs.size(), 1);
+        ASSERT_EQUAL(docs[0].id, 43);
+    }
+    {
+        SearchServer server;
+        server.AddDocument(doc_id, content, DocumentStatus::ACTUAL, ratings);
+        server.AddDocument(doc_id2, content, DocumentStatus::REMOVED, ratings);
+        vector<Document> docs = server.FindTopDocuments("cat"s, DocumentStatus::REMOVED);
+        ASSERT_EQUAL(docs.size(), 1);
+        ASSERT_EQUAL(docs[0].id, 43);
+    }
     {
         SearchServer server;
         server.AddDocument(doc_id, content, DocumentStatus::ACTUAL, ratings);

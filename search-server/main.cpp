@@ -13,6 +13,10 @@ using namespace std;
 const int MAX_RESULT_DOCUMENT_COUNT = 5;
 const double EPSILON = 1e-6;
 
+
+
+
+
 string ReadLine() {
     string s;
     getline(cin, s);
@@ -243,14 +247,60 @@ private:
 
 };
 
+template <typename Element>
+void Print(ostream& out, const Element& container) {
+    bool first = true;
+    for (const auto& elem : container) {
+        if (!first) {
+            out << ", "s;
+        }
+        first = false;
+        out << elem;
+    }
+}
+
+template <typename Element1, typename Element2>
+void Print(ostream& out, const map<Element1, Element2>& container) {
+    bool first = true;
+    for (const auto& [elem1, elem2] : container) {
+        if (!first) {
+            out << ", "s;
+        }
+        first = false;
+        out << elem1 << ": "s << elem2;
+    }
+}
+
+template<typename Element>
+ostream& operator<<(ostream& out, vector<Element> t) {
+    out << "["s;
+    Print(out, t);
+    out << "]"s;
+    return out;
+}
+template<typename Element>
+ostream& operator<<(ostream& out, set<Element> t) {
+    out << "{"s;
+    Print(out, t);
+    out << "}"s;
+    return out;
+}
+
+template<typename Element1, typename Element2>
+ostream& operator<<(ostream& out, map<Element1, Element2> t) {
+    out << "{"s;
+    Print(out, t);
+    out << "}"s;
+    return out;
+}
+
 template <typename T, typename U>
 void AssertEqualImpl(const T& t, const U& u, const string& t_str, const string& u_str, const string& file, const string& func, unsigned line, const string& hint) {
     if (t != u) {
         cout << boolalpha;
         cout << file << "("s << line << "): "s << func << ": "s;
         cout << "ASSERT_EQUAL("s << t_str << ", "s << u_str << ") failed: "s;
-        cout << t << " != "s << u << "."s; //на практикуме все работает, а в вижуале выдает ошибку: Ошибка	C2679	бинарный "<<": не найден оператор, принимающий правый операнд типа "const T" (или приемлемое преобразование отсутствует), как это исправить?
-
+        cout << t << " != "s << u << "."s;
         if (!hint.empty()) {
             cout << " Hint: "s << hint;
         }
@@ -357,14 +407,14 @@ void RelevanceSort() {
     const int doc_id = 42;
     const string content = "cat in the city"s;
     const vector<int> ratings = { 1, 2, 3 };
-    const string content2 = "dog in house"s;
+    const string content2 = "cat on house"s;
     const int doc_id2 = 43;
     {
         SearchServer server;
 
         server.AddDocument(doc_id, content, DocumentStatus::ACTUAL, ratings);
         server.AddDocument(doc_id2, content2, DocumentStatus::ACTUAL, ratings);
-        vector<Document> docs = server.FindTopDocuments("cat"s);
+        vector<Document> docs = server.FindTopDocuments("cat in"s);
         ASSERT_HINT(docs[0].relevance > docs[1].relevance, "relevance of previous doc must be higher");
 
     }
@@ -373,12 +423,64 @@ void RelevanceSort() {
 void Rating() {
     const int doc_id = 42;
     const string content = "cat in the city"s;
+    const vector<int> ratings1 = { 1, 2, 3 };
+    const vector<int> ratings2 = { -1, -2, -3 };
+    const vector<int> ratings3 = { 2, 2, -1 };
+    {
+        SearchServer server;
+        server.AddDocument(doc_id, content, DocumentStatus::ACTUAL, ratings1);
+        vector<Document> docs = server.FindTopDocuments("cat"s);
+        ASSERT_EQUAL(docs[0].rating, 2);
+    }
+    {
+        SearchServer server;
+        server.AddDocument(doc_id, content, DocumentStatus::ACTUAL, ratings2);
+        vector<Document> docs = server.FindTopDocuments("cat"s);
+        ASSERT_EQUAL(docs[0].rating, -2);
+    }
+    {
+        SearchServer server;
+        server.AddDocument(doc_id, content, DocumentStatus::ACTUAL, ratings3);
+        vector<Document> docs = server.FindTopDocuments("cat"s);
+        ASSERT_EQUAL(docs[0].rating, 1);
+    }
+}
+
+void PredicateAndStatus() {
+    const int doc_id = 42;
+    const int doc_id2 = 43;
+    const string content = "cat in the city"s;
     const vector<int> ratings = { 1, 2, 3 };
     {
         SearchServer server;
         server.AddDocument(doc_id, content, DocumentStatus::ACTUAL, ratings);
+        server.AddDocument(doc_id2, content, DocumentStatus::BANNED, ratings);
+        vector<Document> docs = server.FindTopDocuments("cat"s, DocumentStatus::BANNED);
+        ASSERT_EQUAL(docs.size(), 1);
+        ASSERT_EQUAL(docs[0].id, 43);
+    }
+    {
+        SearchServer server;
+        server.AddDocument(doc_id, content, DocumentStatus::ACTUAL, ratings);
+        server.AddDocument(doc_id2, content, DocumentStatus::ACTUAL, ratings);
+        vector<Document> docs = server.FindTopDocuments("cat"s, [](int document_id, DocumentStatus status, int rating) { return document_id % 2 == 0; });
+        ASSERT_EQUAL(docs.size(), 1);
+        ASSERT_EQUAL(docs[0].id, 42);
+    }
+}
+
+void Relevance() {
+    const int doc_id = 42;
+    const string content = "cat in the city"s;
+    const vector<int> ratings = { 1, 2, 3 };
+    const int doc_id2 = 43;
+    const string content2 = "dog in the city"s;
+    {
+        SearchServer server;
+        server.AddDocument(doc_id, content, DocumentStatus::ACTUAL, ratings);
+        server.AddDocument(doc_id2, content2, DocumentStatus::ACTUAL, ratings);
         vector<Document> docs = server.FindTopDocuments("cat"s);
-        ASSERT_EQUAL(docs[0].rating, 2);
+        ASSERT(abs(docs[0].relevance-0.173287)<EPSILON);
     }
 }
 
@@ -391,6 +493,8 @@ void TestSearchServer() {
     RUN_TEST(Matching);
     RUN_TEST(RelevanceSort);
     RUN_TEST(Rating);
+    RUN_TEST(PredicateAndStatus);
+    RUN_TEST(Relevance);
 }
 
 // ==================== для примера =========================

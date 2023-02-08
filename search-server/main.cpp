@@ -78,36 +78,31 @@ enum class DocumentStatus {
 
 class SearchServer {
 public:
-    inline static constexpr int INVALID_DOCUMENT_ID = -1;
     template <typename StringContainer>
     explicit SearchServer(const StringContainer& stop_words)
-        : stop_words_(MakeUniqueNonEmptyStrings(stop_words)) {
-            for(const auto& word : stop_words){
-            if (!IsValidWord(word))
+        : stop_words_(MakeUniqueNonEmptyStrings(stop_words)) { 
+            if (any_of(stop_words.begin(),stop_words.end(),[](string word){return !IsValidWord(word);}))
                 throw invalid_argument("stop words must not contain special characters"s);
-                }
+                
     }
 
     explicit SearchServer(const string& stop_words_text)
         : SearchServer(
-            SplitIntoWords(stop_words_text))  // Invoke delegating constructor from string container
+            SplitIntoWords(stop_words_text))  
     {
-            if (!IsValidWord(stop_words_text))
-                throw invalid_argument("stop words must not contain special characters"s);
     }
 
   void AddDocument(int document_id, const string& document, DocumentStatus status, const vector<int>& ratings) {
       if (document_id<0) 
           throw invalid_argument("id must be greater then zero"s);
-      for (const auto&[doc_id,_] : documents_){
-          if (doc_id==document_id)
+      if (documents_.count(document_id)>0)
               throw invalid_argument("id's must not match"s);
-      }
         const vector<string> words = SplitIntoWordsNoStop(document);
       for (auto const& word : words){
           if (!IsValidWord(word))
               throw invalid_argument("words must not contain special characters");
       }
+      indexes.push_back(document_id);
         const double inv_word_count = 1.0 / words.size();
         for (const string& word : words) {
             word_to_document_freqs_[word][document_id] += inv_word_count;
@@ -118,10 +113,6 @@ public:
     template <typename DocumentPredicate>
   vector<Document> FindTopDocuments(const string& raw_query,DocumentPredicate document_predicate) const {
         vector<Document> docs;
-        if (!IsValidWord(raw_query)) 
-            throw invalid_argument("query must not contain special characters"s);
-        if (!IsValidQuery(raw_query)) 
-            throw invalid_argument("query contains double minus, or no word after minus");
         const Query query = ParseQuery(raw_query);
         docs = FindAllDocuments(query, document_predicate);
 
@@ -155,10 +146,6 @@ public:
     }
 
     tuple<vector<string>,DocumentStatus> MatchDocument(const string& raw_query, int document_id) const {
-        if (!IsValidWord(raw_query)) 
-            throw invalid_argument("query must not contain special characters"s);
-        if (!IsValidQuery(raw_query)) 
-           throw invalid_argument("query contains double minus, or no word after minus");
         tuple<vector<string>,DocumentStatus> matched_documents;
         const Query query = ParseQuery(raw_query);
         vector<string> matched_words;
@@ -186,7 +173,7 @@ public:
      int GetDocumentId(int index) const {
         if (index<0 || index>=GetDocumentCount()) 
             throw out_of_range("id must be in range");
-        return index;
+        return indexes[index];
     }
     
 private:
@@ -197,31 +184,17 @@ private:
     const set<string> stop_words_;
     map<string, map<int, double>> word_to_document_freqs_;
     map<int, DocumentData> documents_;
+    vector<int> indexes;
 
     bool IsStopWord(const string& word) const {
         return stop_words_.count(word) > 0;
     }
 
     static bool IsValidWord(const string& word) {
-        // A valid word must not contain special characters
+        
         return none_of(word.begin(), word.end(), [](char c) {
             return c >= '\0' && c < ' ';
         });
-    }
-    
-     static bool IsValidQuery(const string& raw_query) {
-        int count = 0;
-        for (const char ch:raw_query) {
-            if (ch=='-'){
-               ++count;
-            }
-            else {
-                count = 0;
-            }
-            if (count>1) return false;
-        }
-        if (count>0) return false;
-        return true;
     }
     
     vector<string> SplitIntoWordsNoStop(const string& text) const {
@@ -253,7 +226,8 @@ private:
 
     QueryWord ParseQueryWord(string text) const {
         bool is_minus = false;
-        // Word shouldn't be empty
+        if (((text[0]=='-')&&(text[1]=='-'))||((text.size()==1)&&(text[0]=='-')))
+            throw invalid_argument("query contains double minus, or no word after minus");
         if (text[0] == '-') {
             is_minus = true;
             text = text.substr(1);
@@ -268,6 +242,8 @@ private:
 
     Query ParseQuery(const string& text) const {
         Query query;
+        if (!IsValidWord(text)) 
+            throw invalid_argument("query must not contain special characters"s);
         for (const string& word : SplitIntoWords(text)) {
             const QueryWord query_word = ParseQueryWord(word);
             if (!query_word.is_stop) {
@@ -281,7 +257,7 @@ private:
         return query;
     }
 
-    // Existence required
+    
     double ComputeWordInverseDocumentFreq(const string& word) const {
         return log(GetDocumentCount() * 1.0 / word_to_document_freqs_.at(word).size());
     }
@@ -332,12 +308,14 @@ void PrintDocument(const Document& document) {
 int main() {
     try{
         SearchServer search_server("и в на"s);
+    // Явно игнорируем результат метода AddDocument, чтобы избежать предупреждения
+    // о неиспользуемом результате его вызова
     search_server.AddDocument(1, "пушистый кот пушистый хвост"s, DocumentStatus::ACTUAL, {7, 2, 7});
     search_server.AddDocument(2, "пушистый пёс и модный ошейник"s, DocumentStatus::ACTUAL, {1, 2}) ;
-    search_server.AddDocument(3, "пушистый котопёс и модный ошейник"s, DocumentStatus::ACTUAL, {1, 2}) ;
+    search_server.AddDocument(3, "непушистый пёс и модный ошейник"s, DocumentStatus::ACTUAL, {1, 2}) ;
     
   search_server.AddDocument(4, "большой пёс скворец"s, DocumentStatus::ACTUAL, {1, 3, 2});
-   const auto documents = search_server.FindTopDocuments("--пушистый"s); 
+   const auto documents = search_server.FindTopDocuments("пушистый"s); 
         for (const Document& document : documents) {
             PrintDocument(document);
         }

@@ -103,7 +103,7 @@ public:
             if (!IsValidWord(word))
                 throw invalid_argument("words must not contain special characters");
         }
-        indexes.push_back(document_id);
+        indexes_.push_back(document_id);
         const double inv_word_count = 1.0 / words.size();
         for (const string& word : words) {
             word_to_document_freqs_[word][document_id] += inv_word_count;
@@ -175,7 +175,7 @@ public:
     int GetDocumentId(int index) const {
         if (index < 0 || index >= GetDocumentCount())
             throw out_of_range("id must be in range");
-        return indexes[index];
+        return indexes_[index];
     }
 
 private:
@@ -186,7 +186,7 @@ private:
     const set<string> stop_words_;
     map<string, map<int, double>> word_to_document_freqs_;
     map<int, DocumentData> documents_;
-    vector<int> indexes;
+    vector<int> indexes_;
 
     bool IsStopWord(const string& word) const {
         return stop_words_.count(word) > 0;

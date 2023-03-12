@@ -16,8 +16,10 @@ void SearchServer::AddDocument(int document_id, const string& document, Document
 
         const double inv_word_count = 1.0 / words.size();
         for (const string& word : words) {
-            word_to_document_freqs_[word][document_id] += inv_word_count;
+            word_to_document_freqs_[word][document_id]+=inv_word_count;
+            id_to_word_freqs_[document_id][word]+=inv_word_count;
         }
+   
         documents_.emplace(document_id, SearchServer::DocumentData{SearchServer::ComputeAverageRating(ratings), status});
         document_ids_.push_back(document_id);
     }
@@ -37,9 +39,7 @@ int SearchServer::GetDocumentCount() const {
         return documents_.size();
     }
 
-int SearchServer::GetDocumentId(int index) const {
-        return document_ids_.at(index);
-    }
+
 
 tuple<vector<string>, DocumentStatus> SearchServer::MatchDocument(const string& raw_query, int document_id) const {
         const auto query = SearchServer::ParseQuery(raw_query);
@@ -133,3 +133,31 @@ SearchServer::Query SearchServer::ParseQuery(const string& text) const {
 double SearchServer::ComputeWordInverseDocumentFreq(const string& word) const {
         return log(SearchServer::GetDocumentCount() * 1.0 / word_to_document_freqs_.at(word).size());
     }
+
+const map<string, double>& SearchServer::GetWordFrequencies(int document_id) const{
+    static map<string,double> res;
+    res.clear();
+    if (!count(SearchServer::begin(),SearchServer::end(),document_id)){ 
+        return res;
+    }
+   else {
+       for (const auto [word, freq] : id_to_word_freqs_.at(document_id)){
+          res.insert({word,freq});
+   }
+   }
+    return res;
+}
+
+void SearchServer::RemoveDocument(int document_id){
+    for (auto [word, _] : id_to_word_freqs_.at(document_id))
+ {
+            word_to_document_freqs_.at(word).erase(document_id);
+     if (word_to_document_freqs_.at(word).empty()) {
+               word_to_document_freqs_.erase(word);
+           }
+    }
+    id_to_word_freqs_.erase(document_id);
+    documents_.erase(document_id);
+    document_ids_.erase(std::remove(document_ids_.begin(), document_ids_.end(), document_id), document_ids_.end());
+        
+}

@@ -13,6 +13,7 @@
 #include <utility>
 #include <tuple>
 #include <iterator>
+
 const int MAX_RESULT_DOCUMENT_COUNT = 5;
 const double EPSILON=1e-6;
 
@@ -27,21 +28,19 @@ public:
 
     template <typename DocumentPredicate>
     std::vector<Document> FindTopDocuments(const std::string& raw_query,DocumentPredicate document_predicate) const;
-
     std::vector<Document> FindTopDocuments(const std::string& raw_query, DocumentStatus status) const;
-
     std::vector<Document> FindTopDocuments(const std::string& raw_query) const;
 
     int GetDocumentCount() const;
 
    
     
-    std::vector<int>::const_iterator begin() const{
+    std::set<int>::const_iterator begin() const{
         return document_ids_.begin();
     }
     
    
-    std::vector<int>::const_iterator end() const{
+    std::set<int>::const_iterator end() const{
         return document_ids_.end();
     }
     
@@ -59,7 +58,7 @@ private:
     const std::set<std::string> stop_words_;
     std::map<std::string, std::map<int, double>> word_to_document_freqs_;
     std::map<int, DocumentData> documents_;
-    std::vector<int> document_ids_;
+    std::set<int> document_ids_;         //set
     std::map<int ,std::map<std::string, double>> id_to_word_freqs_;
 
     bool IsStopWord(const std::string& word) const;
